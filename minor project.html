@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ConnectBook</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background-color: #f1f5fb;
+            padding: 20px;
+        }
+
+        .container {
+            width: 900px;
+            margin: auto;
+        }
+
+        h1 {
+            color: #1769aa;
+        }
+
+        .box {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #cccccc;
+        }
+
+        input, select {
+            padding: 8px;
+            margin: 5px;
+        }
+
+        button {
+            padding: 8px 12px;
+            background-color: #1769aa;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        .delete {
+            background-color: red;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border-bottom: 1px solid #dddddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        #error {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+
+    <h1>ConnectBook</h1>
+
+    <p>Total Contacts: <span id="count">0</span></p>
+    <p>Categories Used: <span id="categoryCount">0</span></p>
+
+    <div class="box">
+        <h2 id="formTitle">Add New Contact</h2>
+
+        <input type="text" id="name" placeholder="Name">
+        <input type="text" id="phone" placeholder="Phone" maxlength="10">
+        <input type="email" id="email" placeholder="Email">
+
+        <select id="category">
+            <option value="">Select Category</option>
+            <option value="Family">Family</option>
+            <option value="Friends">Friends</option>
+            <option value="College">College</option>
+            <option value="Others">Others</option>
+        </select>
+
+        <button onclick="saveContact()" id="saveButton">Add Contact</button>
+        <button onclick="cancelEdit()" id="cancelButton" style="display:none">Cancel</button>
+
+        <p id="error"></p>
+    </div>
+
+    <div class="box">
+        <h2>My Contacts</h2>
+
+        <input type="text" id="search" placeholder="Search" onkeyup="showContacts()">
+
+        <select id="sort" onchange="showContacts()">
+            <option value="az">Sort A-Z</option>
+            <option value="za">Sort Z-A</option>
+        </select>
+
+        <table>
+            <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Category</th>
+                <th>Actions</th>
+            </tr>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    var contacts = [];
+    var editIndex = -1;
+
+    // get saved contacts
+    var saved = localStorage.getItem("contacts");
+    if (saved != null) {
+        contacts = JSON.parse(saved);
+    }
+
+    // stops typed text from running as HTML
+    function makeSafe(text) {
+        text = text.replace(/&/g, "&amp;");
+        text = text.replace(/</g, "&lt;");
+        text = text.replace(/>/g, "&gt;");
+        return text;
+    }
+
+    function saveContact() {
+        var name = document.getElementById("name").value;
+        var phone = document.getElementById("phone").value;
+        var email = document.getElementById("email").value;
+        var category = document.getElementById("category").value;
+        var emailInput = document.getElementById("email");
+
+        if (name == "" || phone == "" || email == "" || category == "") {
+            document.getElementById("error").innerHTML = "Please fill all fields";
+            return;
+        }
+
+        // phone must be exactly 10 digits
+        if (!/^\d{10}$/.test(phone)) {
+            document.getElementById("error").innerHTML = "Phone must be 10 digits";
+            return;
+        }
+
+        // browser checks the email format
+        if (!emailInput.checkValidity()) {
+            document.getElementById("error").innerHTML = "Enter a valid email";
+            return;
+        }
+
+        var contact = {
+            name: name,
+            phone: phone,
+            email: email,
+            category: category
+        };
+
+        if (editIndex == -1) {
+            contacts.push(contact);
+        } else {
+            contacts[editIndex] = contact;
+            editIndex = -1;
+        }
+
+        localStorage.setItem("contacts", JSON.stringify(contacts));
+        clearForm();
+        showContacts();
+    }
+
+    function clearForm() {
+        document.getElementById("name").value = "";
+        document.getElementById("phone").value = "";
+        document.getElementById("email").value = "";
+        document.getElementById("category").value = "";
+        document.getElementById("error").innerHTML = "";
+        document.getElementById("formTitle").innerHTML = "Add New Contact";
+        document.getElementById("saveButton").innerHTML = "Add Contact";
+        document.getElementById("cancelButton").style.display = "none";
+    }
+
+    function showContacts() {
+        var searchText = document.getElementById("search").value.toLowerCase();
+        var sortType = document.getElementById("sort").value;
+
+        // sort the contacts by name
+        contacts.sort(function(a, b) {
+            if (sortType == "az") {
+                return a.name.localeCompare(b.name);
+            } else {
+                return b.name.localeCompare(a.name);
+            }
+        });
+
+        var output = "";
+
+        for (var i = 0; i < contacts.length; i++) {
+            var c = contacts[i];
+            var allText = (c.name + c.phone + c.email + c.category).toLowerCase();
+
+            if (allText.indexOf(searchText) != -1) {
+                output += "<tr>";
+                output += "<td>" + makeSafe(c.name) + "</td>";
+                output += "<td>" + makeSafe(c.phone) + "</td>";
+                output += "<td>" + makeSafe(c.email) + "</td>";
+                output += "<td>" + makeSafe(c.category) + "</td>";
+                output += "<td>";
+                output += "<button onclick='editContact(" + i + ")'>Edit</button> ";
+                output += "<button class='delete' onclick='deleteContact(" + i + ")'>Delete</button>";
+                output += "</td>";
+                output += "</tr>";
+            }
+        }
+
+        if (output == "") {
+            output = "<tr><td colspan='5'>No contacts found</td></tr>";
+        }
+
+        document.getElementById("tableBody").innerHTML = output;
+        document.getElementById("count").innerHTML = contacts.length;
+
+        // count different categories
+        var used = [];
+        for (var j = 0; j < contacts.length; j++) {
+            if (used.indexOf(contacts[j].category) == -1) {
+                used.push(contacts[j].category);
+            }
+        }
+        document.getElementById("categoryCount").innerHTML = used.length;
+    }
+
+    function editContact(index) {
+        var c = contacts[index];
+
+        document.getElementById("name").value = c.name;
+        document.getElementById("phone").value = c.phone;
+        document.getElementById("email").value = c.email;
+        document.getElementById("category").value = c.category;
+
+        editIndex = index;
+
+        document.getElementById("formTitle").innerHTML = "Edit Contact";
+        document.getElementById("saveButton").innerHTML = "Save Changes";
+        document.getElementById("cancelButton").style.display = "inline";
+    }
+
+    function cancelEdit() {
+        editIndex = -1;
+        clearForm();
+    }
+
+    function deleteContact(index) {
+        var sure = confirm("Delete this contact?");
+        if (sure == true) {
+            contacts.splice(index, 1);
+            localStorage.setItem("contacts", JSON.stringify(contacts));
+            editIndex = -1;
+            clearForm();
+            showContacts();
+        }
+    }
+
+    showContacts();
+</script>
+
+</body>
+</html>
